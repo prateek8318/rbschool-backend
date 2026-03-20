@@ -1,0 +1,17 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const express_validator_1 = require("express-validator");
+const fee_controller_1 = require("../controllers/fee.controller");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const error_middleware_1 = require("../middleware/error.middleware");
+const router = (0, express_1.Router)();
+router.get('/fees', auth_middleware_1.requireServiceAuth, fee_controller_1.getAllFees);
+router.get('/fees/student/:studentId', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.param)('studentId').isMongoId()], error_middleware_1.validateRequest, fee_controller_1.getStudentFee);
+router.post('/fees', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.body)('studentId').isString().notEmpty(), (0, express_validator_1.body)('academicYear').isString().notEmpty(), (0, express_validator_1.body)('totalAmount').isNumeric(), (0, express_validator_1.body)('installments').isArray({ min: 1 })], error_middleware_1.validateRequest, fee_controller_1.createFeeRecord);
+router.put('/fees/:id/pay', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.param)('id').isMongoId(), (0, express_validator_1.body)('quarter').isIn(['Q1', 'Q2', 'Q3', 'Q4']), (0, express_validator_1.body)('amountPaid').isNumeric(), (0, express_validator_1.body)('paymentMode').isIn(['cash', 'online', 'cheque'])], error_middleware_1.validateRequest, fee_controller_1.recordPayment);
+router.get('/fees/summary', auth_middleware_1.requireServiceAuth, fee_controller_1.getFeeSummary);
+router.get('/fees/overdue', auth_middleware_1.requireServiceAuth, fee_controller_1.getOverdueFees);
+router.get('/fees/report', auth_middleware_1.requireServiceAuth, fee_controller_1.exportFeeReport);
+router.get('/internal/summary', fee_controller_1.getInternalSummary);
+exports.default = router;

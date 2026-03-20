@@ -1,0 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const express_validator_1 = require("express-validator");
+const class_controller_1 = require("../controllers/class.controller");
+const exam_controller_1 = require("../controllers/exam.controller");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const error_middleware_1 = require("../middleware/error.middleware");
+const router = (0, express_1.Router)();
+router.get('/classes', auth_middleware_1.requireServiceAuth, class_controller_1.getClasses);
+router.post('/classes', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.body)('name').isString().notEmpty(), (0, express_validator_1.body)('section').isString().notEmpty(), (0, express_validator_1.body)('academicYear').isString().notEmpty(), (0, express_validator_1.body)('subjects').isArray()], error_middleware_1.validateRequest, class_controller_1.createClass);
+router.put('/classes/:id', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.param)('id').isMongoId()], error_middleware_1.validateRequest, class_controller_1.updateClass);
+router.delete('/classes/:id', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.param)('id').isMongoId()], error_middleware_1.validateRequest, class_controller_1.deleteClass);
+router.get('/classes/:id/students', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.param)('id').isMongoId()], error_middleware_1.validateRequest, class_controller_1.getClassStudents);
+router.get('/internal/class/:id', exam_controller_1.getClassInternal);
+router.get('/internal/teacher-classes/:teacherId', exam_controller_1.getTeacherClassesInternal);
+router.get('/internal/classes-by-ids', exam_controller_1.getClassesByIdsInternal);
+exports.default = router;

@@ -1,0 +1,16 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const express_validator_1 = require("express-validator");
+const announcement_controller_1 = require("../controllers/announcement.controller");
+const notification_controller_1 = require("../controllers/notification.controller");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const error_middleware_1 = require("../middleware/error.middleware");
+const router = (0, express_1.Router)();
+router.get('/notifications', auth_middleware_1.requireServiceAuth, notification_controller_1.getMyNotifications);
+router.put('/notifications/:id/read', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.param)('id').isMongoId()], error_middleware_1.validateRequest, notification_controller_1.markAsRead);
+router.put('/notifications/read-all', auth_middleware_1.requireServiceAuth, notification_controller_1.markAllRead);
+router.get('/announcements', auth_middleware_1.requireServiceAuth, announcement_controller_1.getAnnouncements);
+router.post('/announcements', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.body)('title').isString().notEmpty(), (0, express_validator_1.body)('message').isString().notEmpty(), (0, express_validator_1.body)('targetRoles').isArray({ min: 1 })], error_middleware_1.validateRequest, announcement_controller_1.createAnnouncement);
+router.delete('/announcements/:id', auth_middleware_1.requireServiceAuth, [(0, express_validator_1.param)('id').isMongoId()], error_middleware_1.validateRequest, announcement_controller_1.deleteAnnouncement);
+exports.default = router;

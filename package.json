@@ -1,0 +1,19 @@
+{
+  "name": "rbschool",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w api-gateway\" \"npm run dev -w auth-service\" \"npm run dev -w user-service\" \"npm run dev -w academic-service\" \"npm run dev -w attendance-service\" \"npm run dev -w fee-service\" \"npm run dev -w notification-service\" \"npm run dev -w school-service\"",
+    "build:shared": "npm run build -w @rbschool/shared",
+    "build": "npm run build --workspaces --if-present",
+    "docker:up": "docker-compose up --build -d",
+    "docker:down": "docker-compose down -v",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  }
+}
