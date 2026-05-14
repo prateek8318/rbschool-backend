@@ -3,6 +3,7 @@ import { ApiError, verifyAccessToken } from '@rbschool/shared';
 
 const PUBLIC_ROUTES = new Set<string>([
   'POST /api/auth/login',
+  'POST /api/auth/admin/login',
   'POST /api/auth/send-otp',
   'POST /api/auth/verify-otp',
   'POST /api/auth/register-school',
@@ -14,7 +15,9 @@ const normalizePath = (path: string): string => path.split('?')[0];
 
 export const verifyGatewayAuth = (req: Request, _res: Response, next: NextFunction): void => {
   const signature = `${req.method.toUpperCase()} ${normalizePath(req.originalUrl)}`;
+  console.log('Gateway Request:', signature);
   if (PUBLIC_ROUTES.has(signature)) {
+    console.log('Public route allowed:', signature);
     next();
     return;
   }

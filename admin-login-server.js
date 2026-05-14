@@ -1,34 +1,20 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const mongoose = require('mongoose');
+const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(express.json());
 
+const prisma = new PrismaClient();
+
+// Connect to PostgreSQL
+prisma.$connect()
+  .then(() => console.log('Connected to PostgreSQL (Supabase) via Prisma'))
+  .catch(err => console.error('PostgreSQL connection error:', err));
+
 // JWT Secret
 const JWT_SECRET = 'your-super-secret-jwt-key';
-
-// Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/rbschool-auth')
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
-
-// AuthUser Schema
-const authUserSchema = new mongoose.Schema({
-  userId: { type: String, required: true },
-  schoolId: { type: String, required: true },
-  role: { type: String, enum: ['admin', 'teacher', 'parent'], required: true },
-  passwordHash: { type: String },
-  isActive: { type: Boolean, default: true },
-  lastLogin: { type: Date },
-}, { timestamps: true });
-
-authUserSchema.methods.comparePassword = async function(plain) {
-  return bcrypt.compare(plain, this.passwordHash);
-};
-
-const AuthUser = mongoose.model('AuthUser', authUserSchema);
 
 // Admin Login Endpoint
 app.post('/auth/admin/login', async (req, res) => {
@@ -44,7 +30,9 @@ app.post('/auth/admin/login', async (req, res) => {
     }
 
     // Find admin user
-    const adminUser = await AuthUser.findOne({ role: 'admin', isActive: true });
+    const adminUser = await prisma.authUser.findFirst({ 
+      where: { role: 'admin', isActive: true } 
+    });
     
     if (!adminUser) {
       return res.status(404).json({
@@ -54,7 +42,7 @@ app.post('/auth/admin/login', async (req, res) => {
     }
 
     // Verify password
-    const isPasswordValid = await adminUser.comparePassword(password);
+    const isPasswordValid = await bcrypt.compare(password, adminUser.passwordHash);
     
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -64,8 +52,10 @@ app.post('/auth/admin/login', async (req, res) => {
     }
 
     // Update last login
-    adminUser.lastLogin = new Date();
-    await adminUser.save();
+    await prisma.authUser.update({
+      where: { id: adminUser.id },
+      data: { lastLogin: new Date() }
+    });
 
     // Generate tokens
     const payload = {

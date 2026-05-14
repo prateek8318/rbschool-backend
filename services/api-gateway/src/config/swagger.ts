@@ -82,6 +82,10 @@ const options = {
                 school: {
                   type: 'string',
                   description: 'School service status'
+                },
+                admin: {
+                  type: 'string',
+                  description: 'Admin service status'
                 }
               }
             }

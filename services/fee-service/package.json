@@ -8,6 +8,7 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "@rbschool/shared": "*",
     "axios": "^1.8.4",
     "dotenv": "^16.4.7",

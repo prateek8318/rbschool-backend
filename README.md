@@ -19,17 +19,17 @@ RBSchool is designed as a scalable microservices-based system with the following
 | **School Service** | 3007 | School information & settings |
 
 ### Infrastructure
-- **MongoDB**: Dedicated database per service
+- **PostgreSQL (Supabase)**: Centralized database using Prisma ORM
 - **Redis**: Pub/Sub for async events & caching
 - **Shared Package**: Common utilities at `packages/shared`
-- **Docker**: Containerized deployment
+- **Docker**: Containerized deployment (Redis & Services)
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 18+
-- MongoDB & Redis (or use Docker)
-- Git
+- Supabase / PostgreSQL instance
+- Redis (or use Docker)
 
 ### Installation
 

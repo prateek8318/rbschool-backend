@@ -1,6 +1,5 @@
 import bcrypt from 'bcryptjs';
 import axios from 'axios';
-import mongoose from 'mongoose';
 import {
   ApiError,
   ApiResponse,
@@ -11,7 +10,7 @@ import {
 } from '@rbschool/shared';
 import { env } from '../config/env';
 import { redisClient } from '../config/redis';
-import { AuthUser } from '../models/AuthUser';
+import { prisma } from '../config/db';
 import { publishEvent } from '../events/publisher';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
@@ -52,14 +51,16 @@ export const registerSchool = asyncHandler(async (req, res) => {
   });
 
   const school = schoolResponse.data.data as { _id: string; name: string };
-  const userId = new mongoose.Types.ObjectId().toString();
+  const userId = `user_${Date.now()}`;
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-  const authUser = await AuthUser.create({
-    userId,
-    schoolId: school._id,
-    role: 'admin',
-    passwordHash,
+  const authUser = await prisma.authUser.create({
+    data: {
+      userId,
+      schoolId: school._id,
+      role: 'admin',
+      passwordHash,
+    },
   });
 
   const userResponse = await axios.post(`${env.USER_SERVICE_URL}/internal/admin`, {
@@ -99,25 +100,35 @@ export const login = asyncHandler(async (req, res) => {
 
   // For admin login, find by email directly
   if (email === 'admin@gmail.com') {
-    const authUser = await AuthUser.findOne({ isActive: true });
+    console.log('--- Auth Service: Login attempt for admin@gmail.com ---');
+    const authUser = await prisma.authUser.findFirst({
+      where: { role: 'admin', isActive: true },
+    });
     
     if (!authUser) {
       throw new ApiError(404, 'Admin user not found');
     }
 
-    const isPasswordValid = await authUser.comparePassword(password);
+    const isPasswordValid = await bcrypt.compare(password, authUser.passwordHash || '');
+
     if (!isPasswordValid) {
       throw new ApiError(401, 'Invalid credentials');
     }
 
-    authUser.lastLogin = new Date();
     const payload = buildTokenPayload(authUser.userId, authUser.schoolId, authUser.role);
     const accessToken = generateAccessToken(payload as never);
     const refreshToken = generateRefreshToken(payload);
 
-    authUser.refreshToken = refreshToken;
-    await authUser.save();
-    await redisClient.set(`refresh:${authUser.userId}`, refreshToken, 'EX', 30 * 24 * 60 * 60);
+    await prisma.authUser.update({
+      where: { id: authUser.id },
+      data: { 
+        lastLogin: new Date(),
+        refreshToken 
+      },
+    });
+    redisClient.set(`refresh:${authUser.userId}`, refreshToken, 'EX', 30 * 24 * 60 * 60).catch(err => {
+      console.warn('Redis error (set refresh token):', err.message);
+    });
 
     return ApiResponse.success(
       res,
@@ -139,29 +150,45 @@ export const login = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'School ID is required for non-admin users');
   }
 
-  const userLookup = await axios.get(`${env.USER_SERVICE_URL}/internal/find`, {
-    params: { email, schoolId },
-  });
+  let userLookup;
+  try {
+    userLookup = await axios.get(`${env.USER_SERVICE_URL}/internal/find`, {
+      params: { email, schoolId },
+    });
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      throw new ApiError(401, 'Invalid credentials or user not found');
+    }
+    throw error;
+  }
 
   const user = userLookup.data.data as { userId: string; role: 'admin' | 'teacher' | 'parent' };
-  const authUser = await AuthUser.findOne({ userId: user.userId, schoolId, isActive: true });
+  const authUser = await prisma.authUser.findFirst({ 
+    where: { userId: user.userId, schoolId, isActive: true } 
+  });
   if (!authUser) {
     throw new ApiError(404, 'User not found');
   }
 
-  const isPasswordValid = await authUser.comparePassword(password);
+  const isPasswordValid = await bcrypt.compare(password, authUser.passwordHash || '');
   if (!isPasswordValid) {
     throw new ApiError(401, 'Invalid credentials');
   }
 
-  authUser.lastLogin = new Date();
-  const payload = buildTokenPayload(authUser.userId, authUser.schoolId, authUser.role);
-  const accessToken = generateAccessToken(payload as never);
-  const refreshToken = generateRefreshToken(payload);
+    const payload = buildTokenPayload(authUser.userId, authUser.schoolId, authUser.role);
+    const accessToken = generateAccessToken(payload as never);
+    const refreshToken = generateRefreshToken(payload);
 
-  authUser.refreshToken = refreshToken;
-  await authUser.save();
-  await redisClient.set(`refresh:${authUser.userId}`, refreshToken, 'EX', 30 * 24 * 60 * 60);
+    await prisma.authUser.update({
+      where: { id: authUser.id },
+      data: {
+        lastLogin: new Date(),
+        refreshToken,
+      },
+    });
+    redisClient.set(`refresh:${authUser.userId}`, refreshToken, 'EX', 30 * 24 * 60 * 60).catch(err => {
+      console.warn('Redis error (set refresh token):', err.message);
+    });
 
   return ApiResponse.success(
     res,
@@ -201,7 +228,9 @@ export const verifyOTP = asyncHandler(async (req, res) => {
   });
 
   const user = userLookup.data.data as { userId: string; role: 'admin' | 'teacher' | 'parent' };
-  const authUser = await AuthUser.findOne({ userId: user.userId, schoolId, isActive: true });
+  const authUser = await prisma.authUser.findFirst({ 
+    where: { userId: user.userId, schoolId, isActive: true } 
+  });
   if (!authUser) {
     throw new ApiError(404, 'User not found');
   }
@@ -210,9 +239,13 @@ export const verifyOTP = asyncHandler(async (req, res) => {
   const accessToken = generateAccessToken(payload as never);
   const refreshToken = generateRefreshToken(payload);
 
-  authUser.lastLogin = new Date();
-  authUser.refreshToken = refreshToken;
-  await authUser.save();
+  await prisma.authUser.update({
+    where: { id: authUser.id },
+    data: {
+      lastLogin: new Date(),
+      refreshToken,
+    },
+  });
   await redisClient.set(`refresh:${authUser.userId}`, refreshToken, 'EX', 30 * 24 * 60 * 60);
 
   return ApiResponse.success(
@@ -244,7 +277,10 @@ export const refreshToken = asyncHandler(async (req, res) => {
 export const logout = asyncHandler(async (req, res) => {
   const { userId } = (req as AuthenticatedRequest).user;
   await redisClient.del(`refresh:${userId}`);
-  await AuthUser.findOneAndUpdate({ userId }, { $unset: { refreshToken: 1 } });
+  await prisma.authUser.updateMany({
+    where: { userId },
+    data: { refreshToken: null },
+  });
 
   return ApiResponse.success(res, 200, null, 'Logged out successfully');
 });
@@ -256,18 +292,21 @@ export const changePassword = asyncHandler(async (req, res) => {
     newPassword: string;
   };
 
-  const authUser = await AuthUser.findOne({ userId, isActive: true });
+  const authUser = await prisma.authUser.findFirst({ where: { userId, isActive: true } });
   if (!authUser) {
     throw new ApiError(404, 'User not found');
   }
 
-  const matches = await authUser.comparePassword(currentPassword);
+  const matches = await bcrypt.compare(currentPassword, authUser.passwordHash || '');
   if (!matches) {
     throw new ApiError(400, 'Current password is incorrect');
   }
 
-  authUser.passwordHash = await bcrypt.hash(newPassword, 10);
-  await authUser.save();
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await prisma.authUser.update({
+    where: { id: authUser.id },
+    data: { passwordHash },
+  });
 
   return ApiResponse.success(res, 200, null, 'Password changed successfully');
 });
@@ -280,14 +319,16 @@ export const createInternalAuthUser = asyncHandler(async (req, res) => {
     userId?: string;
   };
 
-  const resolvedUserId = userId ?? new mongoose.Types.ObjectId().toString();
+  const resolvedUserId = userId ?? `user_${Date.now()}`;
   const passwordHash = tempPassword ? await bcrypt.hash(tempPassword, 10) : undefined;
 
-  const authUser = await AuthUser.create({
-    userId: resolvedUserId,
-    schoolId,
-    role,
-    passwordHash,
+  const authUser = await prisma.authUser.create({
+    data: {
+      userId: resolvedUserId,
+      schoolId,
+      role,
+      passwordHash,
+    },
   });
 
   return ApiResponse.success(

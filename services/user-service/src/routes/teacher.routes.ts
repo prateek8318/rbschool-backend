@@ -5,6 +5,7 @@ import {
   createTeacher,
   deleteTeacher,
   getTeacherById,
+  getTeacherDashboard,
   getTeachers,
   updateTeacher,
 } from '../controllers/teacher.controller';
@@ -14,7 +15,8 @@ import { validateRequest } from '../middleware/error.middleware';
 const router = Router();
 
 router.get('/teachers', requireServiceAuth, getTeachers);
-router.get('/teachers/:id', requireServiceAuth, [param('id').isMongoId()], validateRequest, getTeacherById);
+router.get('/teachers/dashboard', requireServiceAuth, getTeacherDashboard);
+router.get('/teachers/:id', requireServiceAuth, validateRequest, getTeacherById);
 router.post('/teachers', requireServiceAuth, [
   body('name').isString().notEmpty(),
   body('email').isEmail(),
@@ -22,9 +24,9 @@ router.post('/teachers', requireServiceAuth, [
   body('subjects').isArray(),
   body('experienceYears').optional().isInt({ min: 0 }),
 ], validateRequest, createTeacher);
-router.put('/teachers/:id', requireServiceAuth, [param('id').isMongoId()], validateRequest, updateTeacher);
-router.delete('/teachers/:id', requireServiceAuth, [param('id').isMongoId()], validateRequest, deleteTeacher);
-router.put('/teachers/:id/classes', requireServiceAuth, [param('id').isMongoId(), body('classIds').isArray()], validateRequest, assignClasses);
-router.put('/teachers/:id/assign-classes', requireServiceAuth, [param('id').isMongoId(), body('classIds').isArray()], validateRequest, assignClasses);
+router.put('/teachers/:id', requireServiceAuth, validateRequest, updateTeacher);
+router.delete('/teachers/:id', requireServiceAuth, validateRequest, deleteTeacher);
+router.put('/teachers/:id/classes', requireServiceAuth, [body('classIds').isArray()], validateRequest, assignClasses);
+router.put('/teachers/:id/assign-classes', requireServiceAuth, [body('classIds').isArray()], validateRequest, assignClasses);
 
 export default router;

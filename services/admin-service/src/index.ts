@@ -1,12 +1,11 @@
-import mongoose from 'mongoose';
 import app from './app';
 import { env } from './config/env';
+import { connectDB } from './config/db';
 
 const startServer = async () => {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(env.MONGODB_URI);
-    console.log('Connected to MongoDB');
+    // Connect to PostgreSQL
+    await connectDB();
 
     // Start server
     const port = env.PORT;

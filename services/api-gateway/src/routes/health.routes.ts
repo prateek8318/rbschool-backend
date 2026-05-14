@@ -16,6 +16,7 @@ router.get(
       fee: env.FEE_SERVICE_URL,
       notification: env.NOTIFICATION_SERVICE_URL,
       school: env.SCHOOL_SERVICE_URL,
+      admin: 'http://localhost:3008',
     };
 
     const results = await Promise.all(

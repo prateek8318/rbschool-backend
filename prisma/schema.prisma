@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  teacher
+  parent
+}
+
+model AuthUser {
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  schoolId      String
+  role          UserRole
+  passwordHash  String?
+  refreshToken  String?
+  otp           String?
+  otpExpiresAt  DateTime?
+  isActive      Boolean   @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([schoolId])
+}
+
+enum Board {
+  CBSE
+  ICSE
+  State
+}
+
+model School {
+  id                String   @id @default(uuid())
+  name              String
+  address           String
+  board             Board
+  phone             String
+  email             String?
+  logoUrl           String?
+  academicYear      String?
+  pushNotifications Boolean  @default(true)
+  smsAlerts         Boolean  @default(false)
+  autoFeeReminders  Boolean  @default(true)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+model Student {
+  id              String   @id @default(uuid())
+  schoolId        String
+  name            String
+  dob             DateTime
+  gender          Gender
+  photoUrl        String?
+  classId         String?
+  section         String?
+  rollNumber      String
+  admissionNumber String
+  parentUserId    String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([schoolId, admissionNumber])
+  @@index([schoolId])
+}
+
+model AdminProfile {
+  id        String   @id @default(uuid())
+  schoolId  String
+  userId    String   @unique
+  name      String
+  email     String
+  phone     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+}
+
+model TeacherProfile {
+  id               String   @id @default(uuid())
+  schoolId         String
+  userId           String   @unique
+  name             String
+  email            String
+  phone            String
+  subjects         String[] @default([])
+  assignedClassIds String[] @default([])
+  experienceYears  Int      @default(0)
+  qualification    String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([schoolId])
+}
+
+model LeaveApplication {
+  id          String   @id @default(uuid())
+  schoolId    String
+  userId      String
+  role        UserRole
+  leaveType   String   // casual, medical, emergency
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  status      String   @default("pending") // pending, approved, rejected
+  approvedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([schoolId, userId])
+}
+
+model ParentProfile {
+  id              String   @id @default(uuid())
+  schoolId        String
+  userId          String   @unique
+  name            String
+  phone           String
+  childStudentIds String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([schoolId, phone])
+  @@index([schoolId])
+}
+
+model Class {
+  id          String   @id @default(uuid())
+  schoolId    String
+  name        String
+  section     String?
+  teacherId   String?
+  subjects    String[] @default([])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([schoolId, name, section])
+  @@index([schoolId])
+}
+
+model Exam {
+  id          String   @id @default(uuid())
+  schoolId    String
+  name        String
+  classId     String
+  subject     String
+  date        DateTime
+  maxMarks    Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([schoolId, classId])
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  schoolId  String
+  classId   String
+  studentId String
+  date      String
+  status    String   // present, absent, half_day, holiday
+  markedBy  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, date])
+  @@index([schoolId, classId, date])
+}
+
+model HolidayCalendar {
+  id        String   @id @default(uuid())
+  schoolId  String
+  date      String
+  name      String
+  type      String   // national, state, school
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, date])
+}
+
+model FeeRecord {
+  id              String   @id @default(uuid())
+  schoolId        String
+  studentId       String
+  academicYear    String
+  totalAmount     Float
+  paidAmount      Float    @default(0)
+  pendingAmount   Float
+  installments    Json     @default("[]")
+  isArchived      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([schoolId, studentId, academicYear])
+  @@index([schoolId, studentId])
+}

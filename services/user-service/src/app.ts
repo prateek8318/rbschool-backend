@@ -4,6 +4,8 @@ import { errorMiddleware } from './middleware/error.middleware';
 import parentRoutes from './routes/parent.routes';
 import studentRoutes from './routes/student.routes';
 import teacherRoutes from './routes/teacher.routes';
+import leaveRoutes from './routes/leave.routes';
+import internalRoutes from './routes/internal.routes';
 
 const app = express();
 
@@ -18,6 +20,8 @@ app.get('/health', (_req, res) => {
 app.use(studentRoutes);
 app.use(teacherRoutes);
 app.use(parentRoutes);
+app.use(leaveRoutes);
+app.use('/internal', internalRoutes);
 app.use(errorMiddleware);
 
 export default app;
