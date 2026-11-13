@@ -10,7 +10,7 @@ import {
 } from '@rbschool/shared';
 import { env } from '../config/env';
 import { redisClient } from '../config/redis';
-import { prisma } from '../config/db';
+import { AuthUser } from '../models/AuthUser';
 import { publishEvent } from '../events/publisher';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
@@ -54,13 +54,11 @@ export const registerSchool = asyncHandler(async (req, res) => {
   const userId = `user_${Date.now()}`;
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-  const authUser = await prisma.authUser.create({
-    data: {
-      userId,
-      schoolId: school._id,
-      role: 'admin',
-      passwordHash,
-    },
+  const authUser = await AuthUser.create({
+    userId,
+    schoolId: school._id,
+    role: 'admin',
+    passwordHash,
   });
 
   const userResponse = await axios.post(`${env.USER_SERVICE_URL}/internal/admin`, {
@@ -101,9 +99,7 @@ export const login = asyncHandler(async (req, res) => {
   // For admin login, find by email directly
   if (email === 'admin@gmail.com') {
     console.log('--- Auth Service: Login attempt for admin@gmail.com ---');
-    const authUser = await prisma.authUser.findFirst({
-      where: { role: 'admin', isActive: true },
-    });
+    const authUser = await AuthUser.findOne({ role: 'admin', isActive: true });
     
     if (!authUser) {
       throw new ApiError(404, 'Admin user not found');
@@ -119,13 +115,7 @@ export const login = asyncHandler(async (req, res) => {
     const accessToken = generateAccessToken(payload as never);
     const refreshToken = generateRefreshToken(payload);
 
-    await prisma.authUser.update({
-      where: { id: authUser.id },
-      data: { 
-        lastLogin: new Date(),
-        refreshToken 
-      },
-    });
+    await AuthUser.updateOne({ _id: authUser._id }, { lastLogin: new Date(), refreshToken });
     redisClient.set(`refresh:${authUser.userId}`, refreshToken, 'EX', 30 * 24 * 60 * 60).catch(err => {
       console.warn('Redis error (set refresh token):', err.message);
     });
@@ -163,9 +153,7 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   const user = userLookup.data.data as { userId: string; role: 'admin' | 'teacher' | 'parent' };
-  const authUser = await prisma.authUser.findFirst({ 
-    where: { userId: user.userId, schoolId, isActive: true } 
-  });
+  const authUser = await AuthUser.findOne({ userId: user.userId, schoolId, isActive: true });
   if (!authUser) {
     throw new ApiError(404, 'User not found');
   }
@@ -179,13 +167,7 @@ export const login = asyncHandler(async (req, res) => {
     const accessToken = generateAccessToken(payload as never);
     const refreshToken = generateRefreshToken(payload);
 
-    await prisma.authUser.update({
-      where: { id: authUser.id },
-      data: {
-        lastLogin: new Date(),
-        refreshToken,
-      },
-    });
+    await AuthUser.updateOne({ _id: authUser._id }, { lastLogin: new Date(), refreshToken });
     redisClient.set(`refresh:${authUser.userId}`, refreshToken, 'EX', 30 * 24 * 60 * 60).catch(err => {
       console.warn('Redis error (set refresh token):', err.message);
     });
@@ -228,9 +210,7 @@ export const verifyOTP = asyncHandler(async (req, res) => {
   });
 
   const user = userLookup.data.data as { userId: string; role: 'admin' | 'teacher' | 'parent' };
-  const authUser = await prisma.authUser.findFirst({ 
-    where: { userId: user.userId, schoolId, isActive: true } 
-  });
+  const authUser = await AuthUser.findOne({ userId: user.userId, schoolId, isActive: true });
   if (!authUser) {
     throw new ApiError(404, 'User not found');
   }
@@ -239,13 +219,7 @@ export const verifyOTP = asyncHandler(async (req, res) => {
   const accessToken = generateAccessToken(payload as never);
   const refreshToken = generateRefreshToken(payload);
 
-  await prisma.authUser.update({
-    where: { id: authUser.id },
-    data: {
-      lastLogin: new Date(),
-      refreshToken,
-    },
-  });
+  await AuthUser.updateOne({ _id: authUser._id }, { lastLogin: new Date(), refreshToken });
   await redisClient.set(`refresh:${authUser.userId}`, refreshToken, 'EX', 30 * 24 * 60 * 60);
 
   return ApiResponse.success(
@@ -277,10 +251,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
 export const logout = asyncHandler(async (req, res) => {
   const { userId } = (req as AuthenticatedRequest).user;
   await redisClient.del(`refresh:${userId}`);
-  await prisma.authUser.updateMany({
-    where: { userId },
-    data: { refreshToken: null },
-  });
+  await AuthUser.updateMany({ userId }, { $unset: { refreshToken: 1 } });
 
   return ApiResponse.success(res, 200, null, 'Logged out successfully');
 });
@@ -292,7 +263,7 @@ export const changePassword = asyncHandler(async (req, res) => {
     newPassword: string;
   };
 
-  const authUser = await prisma.authUser.findFirst({ where: { userId, isActive: true } });
+  const authUser = await AuthUser.findOne({ userId, isActive: true });
   if (!authUser) {
     throw new ApiError(404, 'User not found');
   }
@@ -303,10 +274,7 @@ export const changePassword = asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  await prisma.authUser.update({
-    where: { id: authUser.id },
-    data: { passwordHash },
-  });
+  await AuthUser.updateOne({ _id: authUser._id }, { passwordHash });
 
   return ApiResponse.success(res, 200, null, 'Password changed successfully');
 });
@@ -322,13 +290,11 @@ export const createInternalAuthUser = asyncHandler(async (req, res) => {
   const resolvedUserId = userId ?? `user_${Date.now()}`;
   const passwordHash = tempPassword ? await bcrypt.hash(tempPassword, 10) : undefined;
 
-  const authUser = await prisma.authUser.create({
-    data: {
-      userId: resolvedUserId,
-      schoolId,
-      role,
-      passwordHash,
-    },
+  const authUser = await AuthUser.create({
+    userId: resolvedUserId,
+    schoolId,
+    role,
+    passwordHash,
   });
 
   return ApiResponse.success(

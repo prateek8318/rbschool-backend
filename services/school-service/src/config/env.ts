@@ -6,7 +6,6 @@ dotenv.config();
 const envSchema = z.object({
   PORT: z.coerce.number().default(3007),
   MONGODB_URI: z.string().min(1),
-  DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
 });
 

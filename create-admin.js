@@ -1,3 +1,4 @@
+require('dotenv').config({ path: './services/auth-service/.env' });
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
@@ -8,7 +9,7 @@ async function createAdmin() {
     console.log('Creating default admin user...');
     
     // Connect to MongoDB
-    await mongoose.connect('mongodb://localhost:27017/rbschool-auth');
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
 
     // Define AuthUser schema inline

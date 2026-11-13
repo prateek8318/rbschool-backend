@@ -2,31 +2,28 @@ import axios from 'axios';
 import { ApiError, ApiResponse, asyncHandler } from '@rbschool/shared';
 import { env } from '../config/env';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
-import { prisma } from '../config/db';
+import { isValidObjectId } from 'mongoose';
+import { TeacherProfile } from '../models/TeacherProfile';
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const getTeachers = asyncHandler(async (req, res) => {
   const schoolId = (req as AuthenticatedRequest).user.schoolId;
   const page = Number(req.query.page ?? 1);
   const limit = Number(req.query.limit ?? 10);
   
-  const where: any = { schoolId, isActive: true };
+  const filter: Record<string, unknown> = { schoolId, isActive: true };
   if (req.query.search) {
-    const search = String(req.query.search);
-    where.OR = [
-      { name: { contains: search, mode: 'insensitive' } },
-      { email: { contains: search, mode: 'insensitive' } },
-      { phone: { contains: search, mode: 'insensitive' } },
-    ];
+    const search = new RegExp(escapeRegex(String(req.query.search)), 'i');
+    filter.$or = [{ name: search }, { email: search }, { phone: search }];
   }
 
   const [teachers, total] = await Promise.all([
-    prisma.teacherProfile.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-    prisma.teacherProfile.count({ where }),
+    TeacherProfile.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+    TeacherProfile.countDocuments(filter),
   ]);
 
   return ApiResponse.success(
@@ -40,9 +37,8 @@ export const getTeachers = asyncHandler(async (req, res) => {
 
 export const getTeacherById = asyncHandler(async (req, res) => {
   const schoolId = (req as AuthenticatedRequest).user.schoolId;
-  const teacher = await prisma.teacherProfile.findFirst({
-    where: { id: req.params.id, schoolId },
-  });
+  if (!isValidObjectId(req.params.id)) throw new ApiError(404, 'Teacher not found');
+  const teacher = await TeacherProfile.findOne({ _id: req.params.id, schoolId }).lean();
   if (!teacher) throw new ApiError(404, 'Teacher not found');
 
   const classes = teacher.assignedClassIds.length
@@ -58,9 +54,7 @@ export const getTeacherById = asyncHandler(async (req, res) => {
 export const getTeacherDashboard = asyncHandler(async (req, res) => {
   const { userId, schoolId } = (req as AuthenticatedRequest).user;
   
-  const teacher = await prisma.teacherProfile.findUnique({
-    where: { userId },
-  });
+  const teacher = await TeacherProfile.findOne({ userId });
   
   if (!teacher) throw new ApiError(404, 'Teacher profile not found');
 
@@ -102,18 +96,16 @@ export const createTeacher = asyncHandler(async (req, res) => {
     tempPassword,
   });
 
-  const teacher = await prisma.teacherProfile.create({
-    data: {
-      schoolId,
-      userId: authResponse.data.data.userId,
-      name,
-      email,
-      phone,
-      subjects: subjects || [],
-      experienceYears: Number(experienceYears),
-      qualification,
-      assignedClassIds: [],
-    },
+  const teacher = await TeacherProfile.create({
+    schoolId,
+    userId: authResponse.data.data.userId,
+    name,
+    email,
+    phone,
+    subjects: subjects || [],
+    experienceYears: Number(experienceYears),
+    qualification,
+    assignedClassIds: [],
   });
 
   return ApiResponse.success(res, 201, { teacher, tempPassword }, 'Teacher created successfully');
@@ -121,33 +113,32 @@ export const createTeacher = asyncHandler(async (req, res) => {
 
 export const updateTeacher = asyncHandler(async (req, res) => {
   const schoolId = (req as AuthenticatedRequest).user.schoolId;
-  const teacher = await prisma.teacherProfile.updateMany({
-    where: { id: req.params.id, schoolId },
-    data: req.body,
-  });
-  if (teacher.count === 0) throw new ApiError(404, 'Teacher not found');
-  
-  const updatedTeacher = await prisma.teacherProfile.findUnique({ where: { id: req.params.id } });
+  if (!isValidObjectId(req.params.id)) throw new ApiError(404, 'Teacher not found');
+  const updatedTeacher = await TeacherProfile.findOneAndUpdate(
+    { _id: req.params.id, schoolId },
+    req.body,
+    { new: true, runValidators: true },
+  );
+  if (!updatedTeacher) throw new ApiError(404, 'Teacher not found');
   return ApiResponse.success(res, 200, updatedTeacher, 'Teacher updated successfully');
 });
 
 export const deleteTeacher = asyncHandler(async (req, res) => {
   const schoolId = (req as AuthenticatedRequest).user.schoolId;
-  await prisma.teacherProfile.updateMany({
-    where: { id: req.params.id, schoolId },
-    data: { isActive: false },
-  });
+  if (isValidObjectId(req.params.id)) {
+    await TeacherProfile.updateOne({ _id: req.params.id, schoolId }, { isActive: false });
+  }
   return ApiResponse.success(res, 200, null, 'Teacher deleted successfully');
 });
 
 export const assignClasses = asyncHandler(async (req, res) => {
   const schoolId = (req as AuthenticatedRequest).user.schoolId;
-  const teacher = await prisma.teacherProfile.updateMany({
-    where: { id: req.params.id, schoolId },
-    data: { assignedClassIds: req.body.classIds },
-  });
-  if (teacher.count === 0) throw new ApiError(404, 'Teacher not found');
-  
-  const updatedTeacher = await prisma.teacherProfile.findUnique({ where: { id: req.params.id } });
+  if (!isValidObjectId(req.params.id)) throw new ApiError(404, 'Teacher not found');
+  const updatedTeacher = await TeacherProfile.findOneAndUpdate(
+    { _id: req.params.id, schoolId },
+    { assignedClassIds: req.body.classIds },
+    { new: true },
+  );
+  if (!updatedTeacher) throw new ApiError(404, 'Teacher not found');
   return ApiResponse.success(res, 200, updatedTeacher, 'Classes assigned successfully');
 });

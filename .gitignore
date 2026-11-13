@@ -1,6 +1,7 @@
-/.env
-/.env.example
-/RBSchool-API-Collection.postman_collection.json
-/simple-admin-login.js
-/test-admin-login.js
 node_modules
+dist
+*.log
+.DS_Store
+coverage
+uploads
+/RBSchool-API-Collection.postman_collection.json

@@ -1,17 +1,18 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
+const mongoose = require('mongoose');
+require('dotenv').config({ path: './services/auth-service/.env' });
 const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(express.json());
 
-const prisma = new PrismaClient();
+// Same collection that auth-service's AuthUser model uses
+const AuthUser = mongoose.model('AuthUser', new mongoose.Schema({}, { strict: false, timestamps: true }));
 
-// Connect to PostgreSQL
-prisma.$connect()
-  .then(() => console.log('Connected to PostgreSQL (Supabase) via Prisma'))
-  .catch(err => console.error('PostgreSQL connection error:', err));
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // JWT Secret
 const JWT_SECRET = 'your-super-secret-jwt-key';
@@ -30,9 +31,7 @@ app.post('/auth/admin/login', async (req, res) => {
     }
 
     // Find admin user
-    const adminUser = await prisma.authUser.findFirst({ 
-      where: { role: 'admin', isActive: true } 
-    });
+    const adminUser = await AuthUser.findOne({ role: 'admin', isActive: true }).lean();
     
     if (!adminUser) {
       return res.status(404).json({
@@ -52,10 +51,7 @@ app.post('/auth/admin/login', async (req, res) => {
     }
 
     // Update last login
-    await prisma.authUser.update({
-      where: { id: adminUser.id },
-      data: { lastLogin: new Date() }
-    });
+    await AuthUser.updateOne({ _id: adminUser._id }, { lastLogin: new Date() });
 
     // Generate tokens
     const payload = {
