@@ -9,10 +9,15 @@ import { env, isProduction } from './config/env';
 import { AppError } from './core/errors';
 import { apiRouter } from './routes';
 
-/** CORS_ORIGINS entries may use one leading wildcard, e.g. https://*.devtunnels.ms */
+/**
+ * CORS_ORIGINS entries may contain a `*` wildcard for part of the host name,
+ * e.g. https://*.devtunnels.ms or https://rbschool-admin*.vercel.app.
+ * The wildcard matches host characters only (letters, digits, dots, dashes),
+ * never a port, path or another scheme.
+ */
 const originPatterns = env.CORS_ORIGINS.map((entry) =>
   entry.includes('*')
-    ? new RegExp(`^${entry.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&')).join('[a-z0-9-]+')}$`, 'i')
+    ? new RegExp(`^${entry.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&')).join('[a-z0-9.-]+')}$`, 'i')
     : entry,
 );
 const isAllowedOrigin = (origin: string) =>
